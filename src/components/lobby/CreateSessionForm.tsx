@@ -20,11 +20,8 @@ export function CreateSessionForm() {
 
     const formData = new FormData(e.currentTarget);
     const data = {
-      name: formData.get('sessionName') as string,
-      issueKey: formData.get('issueKey') as string,
-      issueSummary: formData.get('issueSummary') as string,
-      dealerName: formData.get('dealerName') as string,
-      autoReveal: false,
+      sessionName: formData.get('sessionName') as string,
+      ownerName: formData.get('ownerName') as string,
     };
 
     try {
@@ -39,10 +36,13 @@ export function CreateSessionForm() {
         throw new Error(errorData.error || 'Failed to create session');
       }
 
-      const { session } = await response.json();
+      const { session, playerId } = await response.json();
 
-      // Redirect to session page with dealer role and name
-      router.push(`/session/${session.id}?role=dealer&name=${encodeURIComponent(data.dealerName)}`);
+      // Store playerId in localStorage
+      localStorage.setItem(`player_${session.id}`, playerId);
+
+      // Redirect to session page
+      router.push(`/session/${session.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create session');
     } finally {
@@ -71,31 +71,11 @@ export function CreateSessionForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="dealerName">Your Name (Dealer)</Label>
+            <Label htmlFor="ownerName">Your Name</Label>
             <Input
-              id="dealerName"
-              name="dealerName"
+              id="ownerName"
+              name="ownerName"
               placeholder="John Doe"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="issueKey">First Issue Key</Label>
-            <Input
-              id="issueKey"
-              name="issueKey"
-              placeholder="PROJ-123"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="issueSummary">Issue Summary</Label>
-            <Input
-              id="issueSummary"
-              name="issueSummary"
-              placeholder="Implement user authentication"
               required
             />
           </div>

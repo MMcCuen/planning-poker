@@ -1,20 +1,18 @@
 'use client';
 
-import { use, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useSocket } from '@/hooks/useSocket';
-import { useSession } from '@/hooks/useSession';
+import { use, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { VotingCards } from '@/components/session/VotingCards';
-import { EstimationTable } from '@/components/session/EstimationTable';
-import { DealerControls } from '@/components/session/DealerControls';
 import { VotingResults } from '@/components/session/VotingResults';
-import { IssueSidebar } from '@/components/session/IssueSidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { SOCKET_EVENTS } from '@/lib/constants/socket-events';
-import { Copy, LogOut, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Copy, LogOut, Loader2, Plus } from 'lucide-react';
+import { calculateVotingResults } from '@/lib/utils/calculations';
+import type { Session, Player, Vote } from '@/lib/session-store';
 
 interface SessionPageProps {
   params: Promise<{ sessionId: string }>;
@@ -22,62 +20,117 @@ interface SessionPageProps {
 
 export default function SessionPage({ params }: SessionPageProps) {
   const { sessionId } = use(params);
-  const searchParams = useSearchParams();
   const router = useRouter();
 
-  const playerName = searchParams.get('name') || 'Anonymous';
-  const playerRole = (searchParams.get('role') as 'dealer' | 'voter') || 'voter';
-
-  const { socket, isConnected } = useSocket();
-  const { session, players, votes, results, currentPlayerId, error } = useSession({
-    sessionId,
-    playerName,
-    playerRole,
-    socket,
-  });
-
+  const [session, setSession] = useState<Session | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [votes, setVotes] = useState<Vote[]>([]);
+  const [playerId, setPlayerId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
-  const [showNextIssueDialog, setShowNextIssueDialog] = useState(false);
+  const [showIssueDialog, setShowIssueDialog] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
-  const isDealer = session?.dealerId === currentPlayerId;
-  const hasVoted = votes.some((v) => v.playerId === currentPlayerId);
-  const isRevealed = session?.status === 'revealed';
+  // Get playerId from localStorage
+  useEffect(() => {
+    const storedPlayerId = localStorage.getItem(`player_${sessionId}`);
+    setPlayerId(storedPlayerId);
+  }, [sessionId]);
 
-  // Vote handlers
-  const handleVote = (value: string) => {
-    if (!socket || !isConnected) return;
+  // Fetch session data
+  const fetchSessionData = async () => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`);
+
+      if (!response.ok) {
+        throw new Error('Session not found');
+      }
+
+      const data = await response.json();
+      setSession(data.session);
+      setPlayers(data.players);
+      setVotes(data.votes);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load session');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Poll for updates every 2 seconds
+  useEffect(() => {
+    fetchSessionData();
+    const interval = setInterval(fetchSessionData, 2000);
+    return () => clearInterval(interval);
+  }, [sessionId]);
+
+  // Handlers
+  const handleAddIssue = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const issueKey = formData.get('issueKey') as string;
+    const issueTitle = formData.get('issueTitle') as string;
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/issue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issueKey, issueTitle }),
+      });
+
+      if (response.ok) {
+        setShowIssueDialog(false);
+        setSelectedCard(null);
+        fetchSessionData();
+      }
+    } catch (err) {
+      console.error('Failed to add issue:', err);
+    }
+  };
+
+  const handleVote = async (value: string) => {
+    if (!playerId) return;
 
     setSelectedCard(value);
-    socket.emit(SOCKET_EVENTS.VOTE_SUBMIT, value);
+
+    try {
+      await fetch(`/api/sessions/${sessionId}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, value }),
+      });
+
+      fetchSessionData();
+    } catch (err) {
+      console.error('Failed to submit vote:', err);
+    }
   };
 
-  const handleReveal = () => {
-    if (!socket || !isConnected) return;
-    socket.emit(SOCKET_EVENTS.VOTE_REVEAL);
+  const handleReveal = async () => {
+    try {
+      await fetch(`/api/sessions/${sessionId}/reveal`, {
+        method: 'POST',
+      });
+
+      fetchSessionData();
+    } catch (err) {
+      console.error('Failed to reveal votes:', err);
+    }
   };
 
-  const handleReset = () => {
-    if (!socket || !isConnected) return;
-    socket.emit(SOCKET_EVENTS.VOTE_RESET);
-    setSelectedCard(null);
-  };
+  const handleReset = async () => {
+    try {
+      await fetch(`/api/sessions/${sessionId}/reset`, {
+        method: 'POST',
+      });
 
-  const handleNextIssue = (issueKey: string, issueSummary: string) => {
-    if (!socket || !isConnected) return;
-    socket.emit(SOCKET_EVENTS.VOTE_NEXT_ISSUE, issueKey, issueSummary);
-    setSelectedCard(null);
-    setShowNextIssueDialog(false);
-  };
-
-  const handleEndSession = () => {
-    if (!socket || !isConnected) return;
-    socket.emit(SOCKET_EVENTS.SESSION_END);
-    router.push('/');
-  };
-
-  const handleLeaveSession = () => {
-    router.push('/');
+      setSelectedCard(null);
+      fetchSessionData();
+    } catch (err) {
+      console.error('Failed to reset votes:', err);
+    }
   };
 
   const copySessionLink = () => {
@@ -87,20 +140,15 @@ export default function SessionPage({ params }: SessionPageProps) {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // Loading state
-  if (!isConnected || !session) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Connecting to session...</p>
-        </div>
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
       </div>
     );
   }
 
-  // Error state
-  if (error) {
+  if (error || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="max-w-md">
@@ -108,13 +156,25 @@ export default function SessionPage({ params }: SessionPageProps) {
             <CardTitle className="text-red-600">Error</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="mb-4">{error}</p>
-            <Button onClick={handleLeaveSession}>Return to Lobby</Button>
+            <p className="mb-4">{error || 'Session not found'}</p>
+            <Button onClick={() => router.push('/lobby')}>Return to Lobby</Button>
           </CardContent>
         </Card>
       </div>
     );
   }
+
+  const isOwner = session.ownerId === playerId;
+  const currentPlayer = players.find(p => p.id === playerId);
+  const hasVoted = votes.some(v => v.playerId === playerId && v.value !== '?');
+  const isRevealed = session.status === 'revealed';
+  const results = isRevealed ? calculateVotingResults(votes.filter(v => v.value !== '?').map(v => ({
+    ...v,
+    sessionId,
+    issueKey: session.currentIssue?.key || '',
+    votedAt: new Date(),
+    revealed: true,
+  }))) : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -125,23 +185,15 @@ export default function SessionPage({ params }: SessionPageProps) {
             <div>
               <h1 className="text-2xl font-bold">{session.name}</h1>
               <p className="text-sm text-muted-foreground">
-                {isDealer ? 'You are the dealer' : 'Player'}
+                {currentPlayer?.name} {isOwner && '(Owner)'}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={copySessionLink}
-              >
+              <Button variant="outline" size="sm" onClick={copySessionLink}>
                 <Copy className="w-4 h-4 mr-2" />
                 {isCopied ? 'Copied!' : 'Share Link'}
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLeaveSession}
-              >
+              <Button variant="outline" size="sm" onClick={() => router.push('/')}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Leave
               </Button>
@@ -152,106 +204,163 @@ export default function SessionPage({ params }: SessionPageProps) {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-[300px_1fr] gap-6">
-          {/* Sidebar */}
-          <aside className="space-y-6">
-            <IssueSidebar
-              issueKey={session.currentIssueKey}
-              issueSummary={session.currentIssueSummary}
-            />
+        <div className="max-w-6xl mx-auto space-y-6">
+          {/* Current Issue */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Current Issue</CardTitle>
+                {isOwner && session.status !== 'voting' && (
+                  <Button size="sm" onClick={() => setShowIssueDialog(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Issue
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {session.currentIssue ? (
+                <div>
+                  <p className="text-2xl font-bold font-mono mb-2">
+                    {session.currentIssue.key}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {session.currentIssue.title}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  {isOwner ? 'Click "Add Issue" to start voting' : 'Waiting for owner to add an issue...'}
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
-            {isDealer && (
-              <DealerControls
-                onReveal={handleReveal}
-                onReset={handleReset}
-                onNextIssue={() => setShowNextIssueDialog(true)}
-                onEndSession={handleEndSession}
-                sessionStatus={session.status}
-                hasVotes={votes.length > 0}
-                disabled={!isConnected}
-              />
-            )}
-          </aside>
+          {/* Players */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Players ({players.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {players.map(player => {
+                  const playerVote = votes.find(v => v.playerId === player.id);
+                  const voted = playerVote && playerVote.value !== '?';
 
-          {/* Main Area */}
-          <main className="space-y-6">
-            {/* Estimation Table */}
+                  return (
+                    <div key={player.id} className="flex flex-col items-center p-4 border rounded-lg">
+                      <Avatar className="h-12 w-12 mb-2">
+                        <AvatarFallback>{player.name.charAt(0).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <p className="font-medium text-sm text-center">{player.name}</p>
+                      {player.isOwner && (
+                        <Badge variant="outline" className="mt-1 text-xs">Owner</Badge>
+                      )}
+                      {voted && !isRevealed && (
+                        <Badge className="mt-2 bg-green-100 text-green-700">Ready</Badge>
+                      )}
+                      {isRevealed && playerVote && playerVote.value !== '?' && (
+                        <div className="mt-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 rounded-lg">
+                          <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                            {playerVote.value}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Voting Cards */}
+          {session.status === 'voting' && !hasVoted && (
             <Card>
               <CardHeader>
-                <CardTitle>Players ({players.length})</CardTitle>
+                <CardTitle>Your Vote</CardTitle>
               </CardHeader>
               <CardContent>
-                <EstimationTable
-                  players={players}
-                  votes={votes}
-                  revealed={isRevealed}
-                  currentUserId={currentPlayerId || ''}
+                <VotingCards
+                  selectedValue={selectedCard}
+                  onSelect={handleVote}
+                  disabled={false}
                 />
               </CardContent>
             </Card>
+          )}
 
-            {/* Voting Cards (for non-dealer players or if not revealed) */}
-            {!isRevealed && playerRole === 'voter' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Your Vote</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <VotingCards
-                    selectedValue={selectedCard}
-                    onSelect={handleVote}
-                    disabled={!isConnected || hasVoted}
-                  />
-                  {hasVoted && (
-                    <p className="text-center text-sm text-muted-foreground mt-4">
-                      Waiting for dealer to reveal votes...
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+          {/* Waiting Message */}
+          {session.status === 'voting' && hasVoted && !isRevealed && (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <p className="text-muted-foreground">
+                  Waiting for {isOwner ? 'all players to vote' : 'owner to reveal votes'}...
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
-            {/* Results (after reveal) */}
-            {isRevealed && results && (
-              <VotingResults votes={votes} results={results} />
-            )}
-          </main>
+          {/* Owner Controls */}
+          {isOwner && session.status === 'voting' && (
+            <div className="flex gap-4">
+              <Button onClick={handleReveal} className="flex-1" size="lg">
+                Reveal Votes
+              </Button>
+            </div>
+          )}
+
+          {/* Results */}
+          {isRevealed && results && (
+            <>
+              <VotingResults
+                votes={votes.filter(v => v.value !== '?').map(v => ({
+                  ...v,
+                  sessionId,
+                  issueKey: session.currentIssue?.key || '',
+                  votedAt: new Date(),
+                  revealed: true,
+                }))}
+                results={results}
+              />
+              {isOwner && (
+                <div className="flex gap-4">
+                  <Button onClick={handleReset} variant="outline" className="flex-1" size="lg">
+                    Reset Votes
+                  </Button>
+                  <Button onClick={() => setShowIssueDialog(true)} className="flex-1" size="lg">
+                    Next Issue
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      {/* Next Issue Dialog */}
-      {showNextIssueDialog && (
+      {/* Add Issue Dialog */}
+      {showIssueDialog && isOwner && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <Card className="max-w-md w-full">
             <CardHeader>
-              <CardTitle>Next Issue</CardTitle>
+              <CardTitle>Add Issue</CardTitle>
             </CardHeader>
             <CardContent>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const formData = new FormData(e.currentTarget);
-                  const issueKey = formData.get('issueKey') as string;
-                  const issueSummary = formData.get('issueSummary') as string;
-                  handleNextIssue(issueKey, issueSummary);
-                }}
-                className="space-y-4"
-              >
+              <form onSubmit={handleAddIssue} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="issueKey">Issue Key</Label>
                   <Input
                     id="issueKey"
                     name="issueKey"
-                    placeholder="PROJ-124"
+                    placeholder="PROJ-123"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="issueSummary">Issue Summary</Label>
+                  <Label htmlFor="issueTitle">Issue Title</Label>
                   <Input
-                    id="issueSummary"
-                    name="issueSummary"
-                    placeholder="Add password reset feature"
+                    id="issueTitle"
+                    name="issueTitle"
+                    placeholder="Implement user authentication"
                     required
                   />
                 </div>
@@ -262,7 +371,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setShowNextIssueDialog(false)}
+                    onClick={() => setShowIssueDialog(false)}
                   >
                     Cancel
                   </Button>

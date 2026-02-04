@@ -23,15 +23,25 @@ export function JoinSessionForm() {
     const playerName = formData.get('playerName') as string;
 
     try {
-      // Verify session exists
-      const response = await fetch(`/api/sessions?id=${sessionId}`);
+      // Join the session
+      const response = await fetch(`/api/sessions/${sessionId}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerName }),
+      });
 
       if (!response.ok) {
-        throw new Error('Session not found');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to join session');
       }
 
+      const { player } = await response.json();
+
+      // Store playerId in localStorage
+      localStorage.setItem(`player_${sessionId}`, player.id);
+
       // Redirect to session page
-      router.push(`/session/${sessionId}?role=voter&name=${encodeURIComponent(playerName)}`);
+      router.push(`/session/${sessionId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join session');
     } finally {
