@@ -1,225 +1,327 @@
-# Planning Poker - Jira Integration
+# Planning Poker - Multi-User Collaborative Estimation
 
-Real-time planning poker application for agile teams with Jira integration.
+Simple, collaborative planning poker application for agile teams with Jira ticket estimation.
 
-## Features (MVP Phase 1)
+## Features
 
-✅ **Core Functionality:**
-- Create and join planning poker sessions
-- Real-time voting with Fibonacci scale (0, 1, 2, 3, 5, ?, ☕)
-- Dealer controls (reveal, reset, next issue)
-- Live player status and vote indicators
-- Automatic statistics calculation (average, median, mode, distribution)
-- Mobile-responsive design with dark mode support
+✅ **Multi-User Sessions:**
+- Create sessions with shareable links
+- Real-time player synchronization via polling
+- Owner controls for managing voting rounds
+- Independent voting for all team members
 
-🚧 **Coming in Phase 2:**
-- Jira OAuth 2.0 authentication
-- Fetch issues directly from Jira boards/sprints
-- Push estimates back to Jira Story Points field
-- View current issue details from Jira
+✅ **Voting Functionality:**
+- Fibonacci scale: 0, 1, 2, 3, 5, ?, ☕
+- Hidden votes until owner reveals
+- Automatic statistics (average, median, distribution)
+- Visual distribution chart
+
+✅ **Issue Management:**
+- Add Jira ticket IDs and titles
+- Owner controls issue flow
+- Reset votes for re-estimation
+- Move to next issue seamlessly
+
+✅ **User Experience:**
+- Mobile-responsive design
+- Dark mode support
+- Real-time player status badges
+- Clean, professional UI
+
+🚧 **Coming Soon:**
+- Jira OAuth integration for direct issue import
+- Push estimates back to Jira
+- Session persistence across restarts
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS + shadcn/ui
-- **Real-time**: Socket.io
-- **State**: Redis (Upstash)
+- **Styling**: Tailwind CSS v3 + shadcn/ui
+- **Real-time**: HTTP Polling (2-second intervals)
+- **Storage**: In-memory (no database needed for POC)
 - **Package Manager**: pnpm
 
 ## Prerequisites
 
 - Node.js 18+ installed
 - pnpm installed (`npm install -g pnpm`)
-- Upstash Redis account (free tier available)
 
-## Setup Instructions
+## Quick Start
 
-### 1. Clone and Install Dependencies
+### 1. Clone and Install
 
-\`\`\`bash
+```bash
 cd /Users/mmccuen/Code/Grubhub/home_poker
 pnpm install
-\`\`\`
+```
 
-### 2. Set Up Upstash Redis
+### 2. Start Development Server
 
-1. Go to [https://upstash.com](https://upstash.com) and create a free account
-2. Create a new Redis database
-3. Copy your REST URL and REST TOKEN
-4. Add them to `.env.local`:
-
-\`\`\`bash
-UPSTASH_REDIS_REST_URL=https://your-redis.upstash.io
-UPSTASH_REDIS_REST_TOKEN=your_token_here
-\`\`\`
-
-### 3. Configure Environment Variables
-
-Edit `.env.local` and set:
-- `UPSTASH_REDIS_REST_URL` - Your Upstash Redis REST URL
-- `UPSTASH_REDIS_REST_TOKEN` - Your Upstash Redis REST token
-- `SESSION_SECRET` - Random 32-character string
-
-### 4. Run the Development Server
-
-\`\`\`bash
+```bash
 pnpm dev
-\`\`\`
+```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Usage
+**That's it!** No database setup, no environment variables needed for local development.
+
+## Usage Guide
 
 ### Creating a Session
 
-1. Go to [http://localhost:3000/lobby](http://localhost:3000/lobby)
-2. Fill out the "Create Session" form:
-   - Session name (e.g., "Sprint 42 Planning")
-   - Your name (you'll be the dealer)
-   - First issue key (e.g., "PROJ-123")
-   - Issue summary
-3. Click "Create Session"
-4. Share the session link with your team
+1. Go to [http://localhost:3000](http://localhost:3000)
+2. Click **"Go to Lobby"**
+3. Fill out "Create Session" form:
+   - **Session Name**: e.g., "Sprint 42 Planning"
+   - **Your Name**: e.g., "Alice"
+4. Click **"Create Session"**
+5. Click **"Share Link"** and send to your team
 
 ### Joining a Session
 
-1. Get the session link from the dealer
-2. Or go to the lobby and enter the session ID
+**Option 1: Via Direct Link**
+1. Click the session link from owner
+2. Enter your name
+3. Click "Join Session"
+
+**Option 2: Via Lobby**
+1. Go to [http://localhost:3000/lobby](http://localhost:3000/lobby)
+2. Enter session ID in "Join Session" form
 3. Enter your name
 4. Click "Join Session"
 
 ### Voting Flow
 
-**As a Player:**
-1. Wait for the dealer to start voting
-2. Select your estimate card (0, 1, 2, 3, 5, ?, ☕)
-3. Your vote is hidden until dealer reveals
-4. See results after reveal
+**As Session Owner:**
+1. Wait for team to join
+2. Click **"Add Issue"**
+3. Enter Jira ticket ID (e.g., "PROJ-123") and title
+4. Click **"Start Voting"**
+5. Wait for team to vote (see "Ready" badges)
+6. Click **"Reveal Votes"**
+7. Review statistics and discussion
+8. Click **"Reset Votes"** to re-estimate or **"Next Issue"** to move on
 
-**As a Dealer:**
-1. Wait for players to vote
-2. Click "Reveal Votes" when ready
-3. View statistics (average, median, distribution)
-4. Click "Reset Votes" to vote again
-5. Click "Next Issue" to move to the next story
-6. Click "End Session" when done
+**As Team Member:**
+1. Wait for owner to add issue
+2. Select your estimate card (0, 1, 2, 3, 5, ?, ☕)
+3. Wait for owner to reveal votes
+4. See results and statistics
+5. Repeat for next issue
+
+### Voting Scale
+
+- **0** - Trivial task or already done
+- **1** - Very simple, minimal effort
+- **2** - Simple, straightforward
+- **3** - Moderate complexity
+- **5** - Complex, requires significant effort
+- **?** - Unsure, need more information
+- **☕** - Need a break
+
+## Testing Multi-User Functionality
+
+### Local Testing (Multiple Browser Tabs)
+
+1. **Tab 1 (Owner):**
+   - Create session as "Alice"
+   - Copy session link
+
+2. **Tab 2 (Player):**
+   - Open **incognito/private window**
+   - Paste session link
+   - Join as "Bob"
+
+3. **Tab 3 (Player):**
+   - Open **another incognito window**
+   - Paste session link
+   - Join as "Charlie"
+
+4. **Add Issue & Vote:**
+   - Alice adds "PROJ-123: Add user auth"
+   - All players vote independently
+   - Alice reveals votes
+   - See results with statistics
 
 ## Project Structure
 
-\`\`\`
+```
 src/
-├── app/                    # Next.js pages
-│   ├── api/               # API routes
-│   ├── lobby/             # Session creation/join
-│   └── session/[id]/      # Real-time session page
-├── components/            # React components
-│   ├── ui/               # shadcn/ui base components
-│   ├── lobby/            # Lobby forms
-│   └── session/          # Session components
-├── lib/                   # Core business logic
-│   ├── socket/           # Socket.io server & handlers
-│   ├── redis/            # Redis session store
-│   ├── utils/            # Utilities & calculations
-│   └── constants/        # Voting scales & events
-├── types/                 # TypeScript definitions
-└── hooks/                 # React hooks
-\`\`\`
+├── app/
+│   ├── page.tsx                    # Landing page
+│   ├── lobby/page.tsx              # Create/join session
+│   ├── session/[sessionId]/        # Main session page with polling
+│   └── api/sessions/               # API routes
+│       ├── route.ts                # Create session
+│       └── [sessionId]/
+│           ├── route.ts            # Get session state
+│           ├── join/route.ts       # Join session
+│           ├── issue/route.ts      # Add issue
+│           ├── vote/route.ts       # Submit vote
+│           ├── reveal/route.ts     # Reveal votes
+│           └── reset/route.ts      # Reset votes
+├── components/
+│   ├── ui/                         # shadcn/ui base components
+│   ├── lobby/                      # Create/join forms
+│   └── session/                    # Voting cards, results
+├── lib/
+│   ├── session-store.ts            # In-memory session management
+│   └── utils/calculations.ts       # Statistics calculations
+└── types/                          # TypeScript definitions
+```
 
-## Key Components
+## API Endpoints
 
-- **EstimationTable**: Player grid with vote status and flip animations
-- **VotingCards**: Interactive card selection UI
-- **DealerControls**: Reveal, reset, next issue buttons
-- **VotingResults**: Statistics and distribution chart
-- **IssueSidebar**: Current issue details
+### POST /api/sessions
+Create a new session
+```json
+{
+  "sessionName": "Sprint 42",
+  "ownerName": "Alice"
+}
+```
 
-## Socket.io Events
+### GET /api/sessions/[sessionId]
+Get current session state (polled every 2 seconds)
 
-**Client → Server:**
-- `session:join` - Join a session
-- `vote:submit` - Submit a vote
-- `vote:reveal` - Reveal all votes (dealer only)
-- `vote:reset` - Clear votes (dealer only)
-- `vote:next-issue` - Move to next issue (dealer only)
+### POST /api/sessions/[sessionId]/join
+Join an existing session
+```json
+{
+  "playerName": "Bob"
+}
+```
 
-**Server → Client:**
-- `session:updated` - Session state changed
-- `player:joined` - New player joined
-- `voting:submitted` - Player voted (value hidden)
-- `voting:revealed` - Votes revealed with results
-- `voting:reset` - Votes cleared
+### POST /api/sessions/[sessionId]/issue
+Add issue to estimate (owner only)
+```json
+{
+  "issueKey": "PROJ-123",
+  "issueTitle": "Add user authentication"
+}
+```
+
+### POST /api/sessions/[sessionId]/vote
+Submit a vote
+```json
+{
+  "playerId": "player_id",
+  "value": "3"
+}
+```
+
+### POST /api/sessions/[sessionId]/reveal
+Reveal all votes (owner only)
+
+### POST /api/sessions/[sessionId]/reset
+Reset votes for new round (owner only)
+
+## How Real-Time Works
+
+Instead of WebSockets, the app uses **HTTP polling**:
+- Clients fetch session state every 2 seconds
+- Simple, reliable, no complex WebSocket setup
+- Works seamlessly with serverless deployments
+- Slight delay (2s) is acceptable for planning poker
+
+## Development Commands
+
+```bash
+# Start dev server
+pnpm dev
+
+# Type checking
+pnpm type-check
+
+# Linting
+pnpm lint
+
+# Format code
+pnpm format
+
+# Build for production
+pnpm build
+
+# Start production server
+pnpm start
+```
 
 ## Deployment
 
-### Vercel Deployment
+### Vercel (Recommended)
 
-1. Push code to GitHub
+1. Push to GitHub
 2. Import project in Vercel
-3. Add environment variables:
-   - `UPSTASH_REDIS_REST_URL`
-   - `UPSTASH_REDIS_REST_TOKEN`
-   - `SESSION_SECRET`
-   - `NEXT_PUBLIC_APP_URL` (your Vercel URL)
-4. Deploy!
+3. Deploy (no environment variables needed!)
 
-**Note**: Socket.io works with Vercel's serverless functions, but requires the custom server setup.
+### Other Platforms
+
+```bash
+# Build
+pnpm build
+
+# Start production server
+pnpm start
+```
+
+**Note:** Sessions are stored in-memory, so they'll be lost on server restart. This is fine for a POC but consider adding Redis or a database for production.
 
 ## Troubleshooting
 
-### "Failed to create session"
-- Check that Redis environment variables are set correctly
-- Verify Upstash Redis database is active
+### Players Not Seeing Each Other
+- Ensure all players are in the same session (check URL)
+- Wait 2-3 seconds for polling to sync
+- Refresh the page if needed
 
-### "Not connecting to session"
-- Ensure development server is running
-- Check browser console for Socket.io errors
-- Verify `.env.local` has correct `NEXT_PUBLIC_APP_URL`
+### Votes Not Appearing
+- Only owner can reveal votes
+- Ensure you've actually voted (selected a card)
+- Check browser console for errors
 
-### "Votes not revealing"
-- Check that you're the dealer
-- Ensure at least one player has voted
-- Look for errors in server console
+### Session Not Found
+- Sessions are lost on server restart (in-memory storage)
+- Create a new session if the old one is gone
 
-## Development
+## Limitations (POC)
 
-### Type Checking
-\`\`\`bash
-pnpm type-check
-\`\`\`
+⚠️ **In-Memory Storage**
+- Sessions lost on server restart
+- No persistence across deployments
 
-### Linting
-\`\`\`bash
-pnpm lint
-\`\`\`
+⚠️ **Polling Delay**
+- 2-second update interval
+- Not instant, but acceptable for this use case
 
-### Format Code
-\`\`\`bash
-pnpm format
-\`\`\`
+⚠️ **No Authentication**
+- Anyone with link can join
+- No user accounts or passwords
+
+## Future Enhancements
+
+### Phase 2: Jira Integration
+- [ ] OAuth 2.0 authentication
+- [ ] Import issues from Jira boards/sprints
+- [ ] Push estimates to Jira Story Points field
+- [ ] Display full issue details
+
+### Phase 3: Production Features
+- [ ] Database persistence (PostgreSQL/MongoDB)
+- [ ] User authentication
+- [ ] Session history and analytics
+- [ ] WebSocket upgrade for instant updates
+- [ ] Custom voting scales (T-shirt sizes, etc.)
+- [ ] Observer mode
+- [ ] In-session chat
 
 ## Contributing
 
-This is an internal tool. For issues or features, contact the development team.
+This is an internal tool. For issues or features, open an issue on GitHub.
 
 ## License
 
 ISC
 
-## Roadmap
+---
 
-### Phase 2: Full Jira Integration (Weeks 3-4)
-- [ ] Jira OAuth 2.0 authentication
-- [ ] Fetch boards and sprints
-- [ ] Search/select issues from backlog
-- [ ] Display full issue details
-- [ ] Push estimates to Jira Story Points field
-- [ ] View current estimates from Jira
-
-### Phase 3: Polish & Production (Weeks 5-6)
-- [ ] Session persistence (rejoin after disconnect)
-- [ ] Estimate history tracking
-- [ ] Optional chat panel
-- [ ] Optional voting time limits
-- [ ] Performance optimizations
-- [ ] Accessibility improvements (WCAG AA)
+**Built with ❤️ for agile teams**
