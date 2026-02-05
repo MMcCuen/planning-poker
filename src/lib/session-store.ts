@@ -194,3 +194,32 @@ export function getSessionState(sessionId: string) {
     votes: sessionVotes,
   };
 }
+
+// Cleanup old sessions to prevent memory leaks
+export function cleanupOldSessions(): number {
+  const now = Date.now();
+  const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  let cleanedCount = 0;
+
+  for (const [sessionId, session] of sessions.entries()) {
+    const age = now - session.createdAt.getTime();
+    if (age > maxAge) {
+      sessions.delete(sessionId);
+      players.delete(sessionId);
+      votes.delete(sessionId);
+      cleanedCount++;
+    }
+  }
+
+  return cleanedCount;
+}
+
+// Run cleanup every hour
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    const cleaned = cleanupOldSessions();
+    if (cleaned > 0) {
+      console.log(`[Session Cleanup] Removed ${cleaned} expired session(s)`);
+    }
+  }, 60 * 60 * 1000); // 1 hour
+}
