@@ -1,4 +1,4 @@
-import type { Vote, VotingResults } from '@/types';
+import type { Vote, VotingResults } from '@/lib/session-store';
 import { getNumericValue, isNumericVote } from '@/lib/constants/voting-scales';
 
 /**

@@ -28,6 +28,15 @@ export interface Vote {
   votedAt: Date;
 }
 
+export interface VotingResults {
+  average: number;
+  median: number;
+  min: number;
+  max: number;
+  mode?: string;
+  distribution: Record<string, number>;
+}
+
 // In-memory storage
 const sessions = new Map<string, Session>();
 const players = new Map<string, Player[]>();
@@ -141,16 +150,17 @@ export function submitVote(sessionId: string, playerId: string, value: string): 
 }
 
 export function getVotes(sessionId: string, revealed: boolean = false): Vote[] {
+  const sessionVotes = votes.get(sessionId) || [];
+
   if (!revealed) {
-    // Return votes without values (just show who voted)
-    const sessionVotes = votes.get(sessionId) || [];
+    // Return votes with hidden values (use '✓' to indicate voted but hidden)
     return sessionVotes.map(v => ({
       ...v,
-      value: '?', // Hide value
+      value: '✓', // Indicates "voted but hidden"
     }));
   }
 
-  return votes.get(sessionId) || [];
+  return sessionVotes;
 }
 
 export function revealVotes(sessionId: string): boolean {

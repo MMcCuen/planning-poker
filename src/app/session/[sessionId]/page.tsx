@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Copy, LogOut, Loader2, Plus } from 'lucide-react';
+import { Copy, LogOut, Loader2, Plus, Check, X } from 'lucide-react';
 import { calculateVotingResults } from '@/lib/utils/calculations';
 import type { Session, Player, Vote } from '@/lib/session-store';
 
@@ -166,15 +166,12 @@ export default function SessionPage({ params }: SessionPageProps) {
 
   const isOwner = session.ownerId === playerId;
   const currentPlayer = players.find(p => p.id === playerId);
-  const hasVoted = votes.some(v => v.playerId === playerId && v.value !== '?');
+  const hasVoted = votes.some(v => v.playerId === playerId);
   const isRevealed = session.status === 'revealed';
-  const results = isRevealed ? calculateVotingResults(votes.filter(v => v.value !== '?').map(v => ({
-    ...v,
-    sessionId,
-    issueKey: session.currentIssue?.key || '',
-    votedAt: new Date(),
-    revealed: true,
-  }))) : null;
+  const results = isRevealed ? calculateVotingResults(votes) : null;
+  const allPlayersVoted = players.length > 0 && players.every(player =>
+    votes.some(v => v.playerId === player.id)
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -245,7 +242,7 @@ export default function SessionPage({ params }: SessionPageProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {players.map(player => {
                   const playerVote = votes.find(v => v.playerId === player.id);
-                  const voted = playerVote && playerVote.value !== '?';
+                  const voted = !!playerVote;
 
                   return (
                     <div key={player.id} className="flex flex-col items-center p-4 border rounded-lg">
@@ -256,10 +253,20 @@ export default function SessionPage({ params }: SessionPageProps) {
                       {player.isOwner && (
                         <Badge variant="outline" className="mt-1 text-xs">Owner</Badge>
                       )}
-                      {voted && !isRevealed && (
-                        <Badge className="mt-2 bg-green-100 text-green-700">Ready</Badge>
+                      {!isRevealed && (
+                        voted ? (
+                          <Badge className="mt-2 bg-green-100 text-green-700 flex items-center gap-1">
+                            <Check className="w-3 h-3" />
+                            Voted
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="mt-2 flex items-center gap-1">
+                            <X className="w-3 h-3" />
+                            Waiting
+                          </Badge>
+                        )
                       )}
-                      {isRevealed && playerVote && playerVote.value !== '?' && (
+                      {isRevealed && playerVote && (
                         <div className="mt-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 rounded-lg">
                           <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
                             {playerVote.value}
@@ -302,10 +309,20 @@ export default function SessionPage({ params }: SessionPageProps) {
 
           {/* Owner Controls */}
           {isOwner && session.status === 'voting' && (
-            <div className="flex gap-4">
-              <Button onClick={handleReveal} className="flex-1" size="lg">
+            <div className="flex gap-4 flex-col">
+              <Button
+                onClick={handleReveal}
+                className="flex-1"
+                size="lg"
+                disabled={!allPlayersVoted}
+              >
                 Reveal Votes
               </Button>
+              {!allPlayersVoted && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Waiting for all players to vote ({votes.length}/{players.length})
+                </p>
+              )}
             </div>
           )}
 
@@ -313,13 +330,7 @@ export default function SessionPage({ params }: SessionPageProps) {
           {isRevealed && results && (
             <>
               <VotingResults
-                votes={votes.filter(v => v.value !== '?').map(v => ({
-                  ...v,
-                  sessionId,
-                  issueKey: session.currentIssue?.key || '',
-                  votedAt: new Date(),
-                  revealed: true,
-                }))}
+                votes={votes}
                 results={results}
               />
               {isOwner && (
